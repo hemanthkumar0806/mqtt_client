@@ -1,19 +1,32 @@
-
+#!/usr/bin/env python3
 """
-Hitachi Inverter RS485 Modbus RTU Client with AWS IoT Core MQTT Publishing
-Using Raspberry Pi UART + MAX485 Module
+Hitachi Inverter RS485 -> AWS IoT Core
+Raspberry Pi + MAX485 Module + WiFi Auto-connect
 """
 
 import time
 import json
 import ssl
 import logging
+import subprocess
 from pymodbus.client.sync import ModbusSerialClient
 from paho.mqtt import client as mqtt_client
 
 # ---------------- Logging ---------------- #
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ---------------- WiFi Connection ---------------- #
+def connect_wifi(ssid, password):
+    """Connect Raspberry Pi to WiFi using nmcli"""
+    try:
+        logger.info(f"🌐 Connecting to WiFi SSID: {ssid} ...")
+        subprocess.run(["nmcli", "d", "wifi", "connect", ssid, "password", password],
+                       check=True)
+        logger.info("✅ WiFi Connected")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ WiFi connection failed: {e}")
+        raise
 
 # ---------------- Inverter Modbus Client ---------------- #
 class HitachiInverterRS485:
@@ -80,9 +93,9 @@ class HitachiInverterRS485:
 def create_mqtt_client(client_id, endpoint, cert_path, key_path, root_ca_path):
     client = mqtt_client.Client(client_id)
     client.tls_set(
-        ca_certs=root_ca_path,
-        certfile=cert_path,
-        keyfile=key_path,
+        ca_certs="cert/RootCA.pem",
+        certfile="cert/certificate.pem.crt",
+        keyfile="cert/private.pem.key",
         tls_version=ssl.PROTOCOL_TLSv1_2,
     )
     client.connect(endpoint, 8883, 60)
@@ -90,7 +103,14 @@ def create_mqtt_client(client_id, endpoint, cert_path, key_path, root_ca_path):
 
 # ---------------- Main ---------------- #
 def main():
-    # AWS IoT Config
+    # WiFi Config (Change to your WiFi SSID + Password)
+    WIFI_SSID = "Sadhana Guest"
+    WIFI_PASSWORD = "12345678"
+
+    # Connect to WiFi
+    connect_wifi(WIFI_SSID, WIFI_PASSWORD)
+
+    # AWS IoT Config (Change paths to match your cert files)
     AWS_ENDPOINT = "a209vpgon02vvn-ats.iot.ap-south-1.amazonaws.com"
     CLIENT_ID = "MySolarThing"
     TOPIC = "solar_power_data/topic"
